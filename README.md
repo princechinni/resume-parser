@@ -1,2 +1,2 @@
 # parser
-Resume Parses
+Resume Parser
