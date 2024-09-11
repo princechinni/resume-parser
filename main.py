@@ -18,7 +18,7 @@ client = OpenAI(
 )
 
 # OpenAI Pricing per 1000 tokens in USD (for GPT-3.5 Turbo)
-OPENAI_COST_PER_1000_TOKENS = 0.002
+OPENAI_COST_PER_1000_TOKENS = 0.0015
 
 # Helper function to calculate the number of tokens used
 def calculate_tokens(text):
@@ -84,25 +84,40 @@ async def parse_resume_from_text(extracted_text: str):
 
     # Call the OpenAI API for text analysis
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=messages,
         max_tokens=1500,
         temperature=0.7
     )
 
-    result = response.choices[0].message.content.strip()
+    # Log the raw response for debugging
+    print("OpenAI API raw response:", response)
 
-
-    # Estimate cost
-    total_tokens_used = calculate_tokens(result) + num_tokens
-    estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
-    
-    # Return the parsed data and cost estimate
-    return {
-        "parsed_data": json.loads(result),
-        "tokens_used": total_tokens_used,
-        "estimated_cost": estimated_cost
-    }
+    # Check if the API response contains a valid message
+    if response and "choices" in response and response.choices:
+        result = response.choices[0].message.content.strip()
+        print("Parsed result from OpenAI:", result)
+        
+        # Check if the result is not empty before attempting to load it as JSON
+        if result:
+            try:
+                parsed_data = json.loads(result)
+            except json.JSONDecodeError as e:
+                return {"error": "Failed to parse JSON from OpenAI response", "details": str(e)}
+            
+            # Estimate cost
+            total_tokens_used = calculate_tokens(result) + num_tokens
+            estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
+            
+            return {
+                "parsed_data": parsed_data,
+                "tokens_used": total_tokens_used,
+                "estimated_cost": estimated_cost
+            }
+        else:
+            return {"error": "OpenAI response was empty"}
+    else:
+        return {"error": "OpenAI API call failed", "response": response}
 
 # API 3: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/parse-resume/")
@@ -114,7 +129,7 @@ async def parse_resume(file: UploadFile = File(...)):
     
     # Extract text from the uploaded file
     extracted_text = text_extractor.extract_text(file_location)
-    
+
     # Prepare the messages for the ChatCompletion API
     messages = [
         {
@@ -157,23 +172,34 @@ async def parse_resume(file: UploadFile = File(...)):
 
     # Call the OpenAI API for text analysis
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=messages,
         max_tokens=1500,
         temperature=0.7
     )
 
-    result = response.choices[0].message.content.strip()
 
 
-    # Estimate cost
-    total_tokens_used = calculate_tokens(result) + num_tokens
-    estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
-    
-    # Return the parsed data and cost estimate
-    return {
-        "parsed_data": json.loads(result),
-        "tokens_used": total_tokens_used,
-        "estimated_cost": estimated_cost
-    }
+
+    result = response.choices[0].message.content.strip('```json').strip('```')
+    print("Parsed result from OpenAI:", result)
+    breakpoint()
+
+    if result:
+        try:
+            parsed_data = json.loads(result)
+        except json.JSONDecodeError as e:
+            return {"error": "Failed to parse JSON from OpenAI response", "details": str(e)}
+        
+        # Estimate cost
+        total_tokens_used = calculate_tokens(result) + num_tokens
+        estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
+        
+        return {
+            "parsed_data": parsed_data,
+            "tokens_used": total_tokens_used,
+            "estimated_cost": estimated_cost
+        }
+    else:
+        return {"error": "OpenAI response was empty"}
 
