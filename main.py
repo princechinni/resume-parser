@@ -1,118 +1,179 @@
-import PyPDF2
-import docx
-import re
-import spacy
-import pdfplumber
+from fastapi import FastAPI, File, UploadFile
+from textExtractor import TextExtractor
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+import json
+import tiktoken  # For estimating token usage
 
-# Load spaCy model for Named Entity Recognition
-nlp = spacy.load('en_core_web_sm')
+# Load environment variables from .env file
+load_dotenv()
 
-def extract_text_from_pdf(pdf_path):
-    text = ''
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text()
-    return clean_text(text)
+app = FastAPI()
+text_extractor = TextExtractor()
 
-def clean_text(text):
-    # Replace common non-text elements or icons with a space
-    # You can customize this based on the specific icons in your PDF
-    cleaned_text = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    return cleaned_text
+# Set OpenAI API key from .env
+client = OpenAI(
+    api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
+)
 
-# def extract_text_from_pdf(pdf_path):
-#     with open(pdf_path, 'rb') as file:
-#         reader = PyPDF2.PdfReader(file)
-#         text = ''
-#         for page in reader.pages:
-#             text += page.extract_text()
-#     return text
+# OpenAI Pricing per 1000 tokens in USD (for GPT-3.5 Turbo)
+OPENAI_COST_PER_1000_TOKENS = 0.002
 
-def extract_text_from_docx(docx_path):
-    doc = docx.Document(docx_path)
-    text = ''
-    for paragraph in doc.paragraphs:
-        text += paragraph.text + '\n'
-    return text
+# Helper function to calculate the number of tokens used
+def calculate_tokens(text):
+    # Use cl100k_base, which is the encoding for gpt-3.5-turbo
+    encoding = tiktoken.get_encoding("cl100k_base")
+    return len(encoding.encode(text))
 
-def extract_text(file_path):
-    if file_path.endswith('.pdf'):
-        return extract_text_from_pdf(file_path)
-    elif file_path.endswith('.docx'):
-        return extract_text_from_docx(file_path)
-    else:
-        raise ValueError('Unsupported file format')
+# API 1: Upload a file (PDF or DOCX) and extract text from it
+@app.post("/extract-text/")
+async def extract_text_from_file(file: UploadFile = File(...)):
+    # Save the uploaded file temporarily
+    file_location = f"/tmp/{file.filename}"
+    with open(file_location, "wb") as f:
+        f.write(await file.read())
+    
+    # Extract text from the uploaded file
+    extracted_text = text_extractor.extract_text(file_location)
+    
+    return {"extracted_text": extracted_text}
 
-def parse_name(text):
-    doc = nlp(text)
-    for ent in doc.ents:
-        if ent.label_ == 'PERSON':
-            return ent.text
-    return None
+# API 2: Take text input and return the parsed resume data with cost
+@app.post("/parse-resume-text/")
+async def parse_resume_from_text(extracted_text: str):
+    # Prepare the messages for the ChatCompletion API
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an assistant that extracts structured data from resumes."
+        },
+        {
+            "role": "user",
+            "content": f"Extract the following details from the text:\n{extracted_text}\n\n"
+                       "Fill in the JSON template with the information you can extract:\n"
+                       '''{
+                           "personal_information": {
+                               "first_name": "",
+                               "last_name": "",
+                               "email": "",
+                               "phone": ""
+                           },
+                           "socials": {
+                               "github": "",
+                               "linkedin": "",
+                               "twitter": "",
+                               "website": ""
+                           },
+                           "courses": [],
+                           "education": [],
+                           "experience": [],
+                           "publications": [],
+                           "skills": [],
+                           "personal_projects": [],
+                           "awards_and_achievements": [],
+                           "position_of_responsibility": [],
+                           "competitions": [],
+                           "extra_curricular_activities": []
+                       }'''
+        }
+    ]
 
-def parse_email(text):
-    email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-    match = email_pattern.search(text)
-    if match:
-        return match.group(0)
-    return None
+    # Estimate tokens before the API call
+    num_tokens = calculate_tokens(extracted_text)
 
-def parse_phone_number(text):
-    phone_pattern = re.compile(r'\b\d{10}\b|\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b')
-    match = phone_pattern.search(text)
-    if match:
-        return match.group(0)
-    return None
+    # Call the OpenAI API for text analysis
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        max_tokens=1500,
+        temperature=0.7
+    )
 
-def parse_education(text):
-    education_keywords = ['school', 'university', 'college', 'bachelor', 'master', 'phd', 'degree', 'cgpa']
-    sentences = text.split('\n')
-    education = []
-    for sentence in sentences:
-        for keyword in education_keywords:
-            if keyword.lower() in sentence.lower():
-                education.append(sentence.strip())
-                break
-    return education
+    result = response.choices[0].message.content.strip()
 
-def parse_experience(text):
-    experience_keywords = ['experience', 'worked', 'position', 'job', 'role', 'responsibility']
-    sentences = text.split('\n')
-    experience = []
-    for sentence in sentences:
-        for keyword in experience_keywords:
-            if keyword.lower() in sentence.lower():
-                experience.append(sentence.strip())
-                break
-    return experience
 
-def parse_skills(text):
-    skills_keywords = ['skills', 'proficiencies', 'competencies', 'technologies', 'technical']
-    sentences = text.split('\n')
-    skills = []
-    for sentence in sentences:
-        for keyword in skills_keywords:
-            if keyword.lower() in sentence.lower():
-                skills.append(sentence.strip())
-                break
-    return skills
-
-def parse_resume(file_path):
-    text = extract_text(file_path)
-    resume_data = {
-        'Name': parse_name(text),
-        'Email': parse_email(text),
-        'Phone': parse_phone_number(text),
-        'Education': parse_education(text),
-        'Experience': parse_experience(text),
-        'Skills': parse_skills(text)
+    # Estimate cost
+    total_tokens_used = calculate_tokens(result) + num_tokens
+    estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
+    
+    # Return the parsed data and cost estimate
+    return {
+        "parsed_data": json.loads(result),
+        "tokens_used": total_tokens_used,
+        "estimated_cost": estimated_cost
     }
-    return resume_data
 
-if __name__ == '__main__':
-    file_path = 'divakarSaiCV.pdf'  # Change to your resume file path
-    parsed_data = parse_resume(file_path)
-    for key, value in parsed_data.items():
-        print(f'{key}: {value}')
-        # print("extracted text: " + extract_text(file_path)) 
+# API 3: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
+@app.post("/parse-resume/")
+async def parse_resume(file: UploadFile = File(...)):
+    # Save the uploaded file temporarily
+    file_location = f"/tmp/{file.filename}"
+    with open(file_location, "wb") as f:
+        f.write(await file.read())
+    
+    # Extract text from the uploaded file
+    extracted_text = text_extractor.extract_text(file_location)
+    
+    # Prepare the messages for the ChatCompletion API
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an assistant that extracts structured data from resumes."
+        },
+        {
+            "role": "user",
+            "content": f"Extract the following details from the text:\n{extracted_text}\n\n"
+                       "Fill in the JSON template with the information you can extract:\n"
+                       '''{
+                           "personal_information": {
+                               "first_name": "",
+                               "last_name": "",
+                               "email": "",
+                               "phone": ""
+                           },
+                           "socials": {
+                               "github": "",
+                               "linkedin": "",
+                               "twitter": "",
+                               "website": ""
+                           },
+                           "courses": [],
+                           "education": [],
+                           "experience": [],
+                           "publications": [],
+                           "skills": [],
+                           "personal_projects": [],
+                           "awards_and_achievements": [],
+                           "position_of_responsibility": [],
+                           "competitions": [],
+                           "extra_curricular_activities": []
+                       }'''
+        }
+    ]
+
+    # Estimate tokens before the API call
+    num_tokens = calculate_tokens(extracted_text)
+
+    # Call the OpenAI API for text analysis
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        max_tokens=1500,
+        temperature=0.7
+    )
+
+    result = response.choices[0].message.content.strip()
+
+
+    # Estimate cost
+    total_tokens_used = calculate_tokens(result) + num_tokens
+    estimated_cost = (total_tokens_used / 1000) * OPENAI_COST_PER_1000_TOKENS
+    
+    # Return the parsed data and cost estimate
+    return {
+        "parsed_data": json.loads(result),
+        "tokens_used": total_tokens_used,
+        "estimated_cost": estimated_cost
+    }
 
