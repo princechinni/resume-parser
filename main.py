@@ -26,11 +26,11 @@ def calculate_tokens(text):
     encoding = tiktoken.get_encoding("cl100k_base")
     return len(encoding.encode(text))
 
-def read_file(file):
+async def read_file(file):
     # Save the uploaded file temporarily
     file_location = f"/tmp/{file.filename}"
     with open(file_location, "wb") as f:
-        f.write(file.read())
+        f.write(await file.read())
     
     # Extract text from the uploaded file
     extracted_text = text_extractor.extract_text(file_location)
@@ -40,14 +40,14 @@ def read_file(file):
 # API 1: Upload a file (PDF or DOCX) and extract text from it
 @app.post("/extract-text/")
 async def extract_text_from_file(file: UploadFile = File(...)):
-    extracted_text = read_file(file)
+    extracted_text = await read_file(file)
     return {"extracted_text": extracted_text}
 
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/parse-resume/")
 async def parse_resume(file: UploadFile = File(...)):
-    extracted_text = read_file(file)
+    extracted_text = await read_file(file)
     
     # Prepare the messages for the ChatCompletion API
     messages = [
@@ -86,6 +86,8 @@ async def parse_resume(file: UploadFile = File(...)):
         }
     ]
 
+    print("messages: ", messages)
+
     # Estimate tokens before the API call
     num_tokens = calculate_tokens(extracted_text)
 
@@ -93,8 +95,8 @@ async def parse_resume(file: UploadFile = File(...)):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        max_tokens=1500,
-        temperature=0.7
+        max_tokens=2000,
+        temperature=0
     )
 
     result = response.choices[0].message.content.strip('```json').strip('```')
