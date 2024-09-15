@@ -37,6 +37,10 @@ async def read_file(file):
 
     return extracted_text
 
+@app.get("/health_check/")
+async def health_check():
+    return {"message": "Resume Parser is healthy"}
+
 # API 1: Upload a file (PDF or DOCX) and extract text from it
 @app.post("/extract-text/")
 async def extract_text_from_file(file: UploadFile = File(...)):
