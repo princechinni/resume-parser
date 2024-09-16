@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
 from openai import OpenAI
 import os
@@ -11,6 +12,15 @@ load_dotenv()
 
 app = FastAPI()
 text_extractor = TextExtractor()
+
+# Add the CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this for production, e.g., allow specific domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Set OpenAI API key from .env
 client = OpenAI(
@@ -37,19 +47,19 @@ async def read_file(file):
 
     return extracted_text
 
-@app.get("/health_check/")
+@app.get("/api/resume/health_check/")
 async def health_check():
     return {"message": "Resume Parser is healthy"}
 
 # API 1: Upload a file (PDF or DOCX) and extract text from it
-@app.post("/extract-text/")
+@app.post("/api/resume/extract-text/")
 async def extract_text_from_file(file: UploadFile = File(...)):
     extracted_text = await read_file(file)
     return {"extracted_text": extracted_text}
 
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
-@app.post("/parse-resume/")
+@app.post("/api/resume/parse-resume/")
 async def parse_resume(file: UploadFile = File(...)):
     extracted_text = await read_file(file)
     

@@ -5,7 +5,7 @@ services:
     container_name: resume_parser
     build: .
     expose:
-      - "80"
+      - "6080"
     env_file:
       - .env
     networks:
