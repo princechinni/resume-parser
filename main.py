@@ -1,8 +1,9 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
 from openai import OpenAI
 import os
+import tempfile
 from dotenv import load_dotenv
 import json
 import tiktoken  # For estimating token usage
@@ -16,7 +17,7 @@ text_extractor = TextExtractor()
 # Add the CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this for production, e.g., allow specific domains
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,13 +38,18 @@ def calculate_tokens(text):
     return len(encoding.encode(text))
 
 async def read_file(file):
-    # Save the uploaded file temporarily
-    file_location = f"/tmp/{file.filename}"
-    with open(file_location, "wb") as f:
-        f.write(await file.read())
-    
-    # Extract text from the uploaded file
-    extracted_text = text_extractor.extract_text(file_location)
+    # Create a temporary file with a secure random name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+        contents = await file.read()
+        temp_file.write(contents)
+        temp_file_path = temp_file.name
+
+    try:
+        # Extract text from the uploaded file
+        extracted_text = text_extractor.extract_text(temp_file_path)
+    finally:
+        # Always remove the temporary file
+        os.unlink(temp_file_path)
 
     return extracted_text
 
@@ -52,33 +58,54 @@ async def health_check():
     return {"message": "Resume Parser is healthy"}
 
 # API 1: Upload a file (PDF or DOCX) and extract text from it
-@app.post("/api/resume/extract-text/")
-async def extract_text_from_file(file: UploadFile = File(...)):
-    extracted_text = await read_file(file)
-    return {"extracted_text": extracted_text}
+# @app.options("/api/resume/extract-text/")
+# async def options_extract_text():
+#     return {}
 
+@app.post("/api/resume/extract-text/")
+async def extract_text_from_file(request: Request, file: UploadFile = File(...)):
+    print("Received request")
+    print("Request headers:", request.headers)
+    print("Received file:", file.filename)
+    
+    try:
+        extracted_text = await read_file(file)
+        return {"extracted_text": extracted_text}
+    except Exception as e:
+        print(f"Error processing file: {str(e)}")
+        return {"error": str(e)}
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/api/resume/parse-resume/")
-async def parse_resume(file: UploadFile = File(...)):
+async def parse_resume(request: Request, file: UploadFile = File(...)):
     extracted_text = await read_file(file)
     
     # Prepare the messages for the ChatCompletion API
     messages = [
         {
             "role": "system",
-            "content": "You are an assistant that extracts structured data from resumes."
+            "content": "You are an expert resume parser AI. Your task is to accurately extract and structure information from resumes into a predefined JSON format. Only include information that is explicitly stated or can be directly inferred from the resume text. Leave fields empty if the information is not present or cannot be confidently determined."
         },
         {
             "role": "user",
-            "content": f"Extract the following details from the text:\n{extracted_text}\n\n"
-                       "Fill in the JSON template with the information you can extract:\n"
-                       '''{
+            "content": f"Carefully analyze the following resume text and extract all relevant information:\n\n{extracted_text}\n\n"
+                       "Fill in the JSON template below with the extracted information. Follow these guidelines:\n"
+                       "1. Only include information that is explicitly stated or can be directly inferred from the resume.\n"
+                       "2. Leave fields empty (use null for numbers/dates, empty string for text, or empty array for lists) if the information is not present.\n"
+                       "3. Use your best judgment to categorize skills and determine proficiency levels.\n"
+                       "4. Generate unique IDs for list items where required.\n"
+                       "5. Format dates as ISO 8601 strings (YYYY-MM-DD) when possible.\n"
+                       "6. Ensure all extracted information is accurate and relevant to the field it's placed in.\n\n"
+                       "7. cgpa_or_percentage should be a number."
+                       "JSON template to fill:"
+                       '''
+                       {
                            "personal_information": {
                                "first_name": "",
                                "last_name": "",
                                "email": "",
-                               "phone": ""
+                               "phone": "",
+                               "expected_salary": null
                            },
                            "socials": {
                                "github": "",
@@ -86,17 +113,76 @@ async def parse_resume(file: UploadFile = File(...)):
                                "twitter": "",
                                "website": ""
                            },
-                           "courses": [],
-                           "education": [],
-                           "experience": [],
-                           "publications": [],
-                           "skills": [],
-                           "personal_projects": [],
+                           "courses": [
+                               {
+                                   "course_name": "",
+                                   "course_link": "",
+                                   "course_provider": "",
+                                   "completion_date": null,
+                               }
+                           ],
+                           "education": [
+                               {
+                                   "institution": "",
+                                   "degree": "",
+                                   "start_date": null,
+                                   "end_date": null,
+                                   "cgpa_or_percentage": null,
+                                   "description": [],
+                               }
+                           ],
+                           "experience": [
+                               {
+                                   "company": "",
+                                   "position": "",
+                                   "start_date": null,
+                                   "end_date": null,
+                                   "description": [],
+                                   "currently_working": false
+                               }
+                           ],
+                           "publications": [
+                               {
+                                   "name": "",
+                                   "link": "",
+                                   "date": null
+                               }
+                           ],
+                           "skills": [
+                               {
+                                   "skill_name": "",
+                                   "skill_proficiency": ""
+                               }
+                           ],
+                           "personal_projects": [
+                               {
+                                   "name": "",
+                                   "description": [],
+                                   "link": "",
+                                   "start_date": null,
+                                   "end_date": null
+                               }
+                           ],
                            "awards_and_achievements": [],
-                           "position_of_responsibility": [],
-                           "competitions": [],
+                           "position_of_responsibility": [
+                               {
+                                   "title": "",
+                                   "organization": "",
+                                   "start_date": null,
+                                   "end_date": null,
+                                   "description": []
+                               }
+                           ],
+                           "competitions": [
+                               {
+                                   "name": "",
+                                   "description": [],
+                                   "date": null
+                               }
+                           ],
                            "extra_curricular_activities": []
-                       }'''
+                       }
+                       '''
         }
     ]
 
@@ -134,3 +220,4 @@ async def parse_resume(file: UploadFile = File(...)):
     else:
         return {"error": "OpenAI response was empty"}
 
+    
