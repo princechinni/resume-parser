@@ -93,10 +93,10 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                        "1. Only include information that is explicitly stated or can be directly inferred from the resume.\n"
                        "2. Leave fields empty (use null for numbers/dates, empty string for text, or empty array for lists) if the information is not present.\n"
                        "3. Use your best judgment to categorize skills and determine proficiency levels.\n"
-                       "4. Generate unique IDs for list items where required.\n"
-                       "5. Format dates as ISO 8601 strings (YYYY-MM-DD) when possible.\n"
-                       "6. Ensure all extracted information is accurate and relevant to the field it's placed in.\n\n"
-                       "7. cgpa_or_percentage should be a number."
+                       "4. Format dates as ISO 8601 strings (YYYY-MM-DD) when possible.\n"
+                       "5. Ensure all extracted information is accurate and relevant to the field it's placed in.\n"
+                       "6. cgpa_or_percentage should be a number.\n"
+                       "7. For all 'id' fields, use a string of numbers(size of Date.now().toString() strings) that represents a unique identifier.\n"
                        "JSON template to fill:"
                        '''
                        {
@@ -115,24 +115,27 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                            },
                            "courses": [
                                {
+                                   "id": "",
                                    "course_name": "",
                                    "course_link": "",
                                    "course_provider": "",
-                                   "completion_date": null,
+                                   "completion_date": null
                                }
                            ],
                            "education": [
                                {
+                                   "id": "",
                                    "institution": "",
                                    "degree": "",
                                    "start_date": null,
                                    "end_date": null,
                                    "cgpa_or_percentage": null,
-                                   "description": [],
+                                   "description": []
                                }
                            ],
                            "experience": [
                                {
+                                   "id": "",
                                    "company": "",
                                    "position": "",
                                    "start_date": null,
@@ -143,6 +146,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                            ],
                            "publications": [
                                {
+                                   "id": "",
                                    "name": "",
                                    "link": "",
                                    "date": null
@@ -150,12 +154,14 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                            ],
                            "skills": [
                                {
+                                   "id": "",
                                    "skill_name": "",
                                    "skill_proficiency": ""
                                }
                            ],
                            "personal_projects": [
                                {
+                                   "id": "",
                                    "name": "",
                                    "description": [],
                                    "link": "",
@@ -163,9 +169,16 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                                    "end_date": null
                                }
                            ],
-                           "awards_and_achievements": [],
+                           "awards_and_achievements": [
+                               {
+                                   "id": "",
+                                   "name": "",
+                                   "description": "",
+                               }
+                           ],
                            "position_of_responsibility": [
                                {
+                                   "id": "",
                                    "title": "",
                                    "organization": "",
                                    "start_date": null,
@@ -175,12 +188,19 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                            ],
                            "competitions": [
                                {
+                                   "id": "",
                                    "name": "",
                                    "description": [],
                                    "date": null
                                }
                            ],
-                           "extra_curricular_activities": []
+                           "extra_curricular_activities": [
+                               {
+                                   "id": "",
+                                   "name": "",
+                                   "description": ""
+                               }
+                           ]
                        }
                        '''
         }
@@ -195,7 +215,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        max_tokens=2000,
+        max_tokens=3000,
         temperature=0
     )
 
@@ -206,6 +226,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
         try:
             parsed_data = json.loads(result)
         except json.JSONDecodeError as e:
+            print("Error parsing JSON:", str(e))
             return {"error": "Failed to parse JSON from OpenAI response", "details": str(e)}
         
         # Estimate cost
