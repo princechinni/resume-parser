@@ -97,6 +97,8 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                        "5. Ensure all extracted information is accurate and relevant to the field it's placed in.\n"
                        "6. cgpa_or_percentage should be a number.\n"
                        "7. For all 'id' fields, use a string of numbers(size of Date.now().toString() strings) that represents a unique identifier.\n"
+                       "8. For all 'description' fields, use an array of strings that represents the description.\n"
+                       "9. make sure awards_and_achievements, extra_curricular_activities are an arrays of strings"
                        "JSON template to fill:"
                        '''
                        {
@@ -169,13 +171,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                                    "end_date": null
                                }
                            ],
-                           "awards_and_achievements": [
-                               {
-                                   "id": "",
-                                   "name": "",
-                                   "description": "",
-                               }
-                           ],
+                           "awards_and_achievements": [],
                            "position_of_responsibility": [
                                {
                                    "id": "",
@@ -194,13 +190,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                                    "date": null
                                }
                            ],
-                           "extra_curricular_activities": [
-                               {
-                                   "id": "",
-                                   "name": "",
-                                   "description": ""
-                               }
-                           ]
+                           "extra_curricular_activities": []
                        }
                        '''
         }
