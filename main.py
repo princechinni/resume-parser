@@ -1,12 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
+from linksExtractor import LinksExtractor
 from openai import OpenAI
 import os
 import tempfile
 from dotenv import load_dotenv
 import json
 import tiktoken  # For estimating token usage
+import re #usedd for the link extraction.
 
 # Load environment variables from .env file
 load_dotenv()
@@ -74,6 +76,41 @@ async def extract_text_from_file(request: Request, file: UploadFile = File(...))
     except Exception as e:
         print(f"Error processing file: {str(e)}")
         return {"error": str(e)}
+
+#links extrator.
+# Endpoint to extract links from a PDF or DOCX file
+@app.post("/api/resume/extract-links/")
+async def extract_links_from_file(file: UploadFile = File(...)):
+    """
+    Endpoint to upload a file (PDF or DOCX) and extract LinkedIn links from it.
+    """
+    # Save the file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+        contents = await file.read()
+        temp_file.write(contents)
+        temp_file_path = temp_file.name
+
+    try:
+        # Use the LinksExtractor class to extract links from the uploaded file
+        links_extractor = LinksExtractor(temp_file_path)
+        extracted_links = links_extractor.extract_links()
+
+        # Filter out LinkedIn links
+        linkedin_links = [link for link in extracted_links if "linkedin.com" in link]
+        github_links = [link for link in extracted_links if "github.com" in link]
+
+        # Create a dictionary with the key "linkedin" and the value being the LinkedIn link(s)
+        result = {"linkedin": linkedin_links[0],"github": github_links[0]}
+        
+
+        # Return the dictionary as JSON
+        return {"extracted_links": result}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        # Always remove the temporary file
+        os.unlink(temp_file_path)
+
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/api/resume/parse-resume/")
