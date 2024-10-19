@@ -130,7 +130,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                        "1. Only include information that is explicitly stated or can be directly inferred from the resume.\n"
                        "2. Leave fields empty (use null for numbers/dates, empty string for text, or empty array for lists) if the information is not present.\n"
                        "3. Use your best judgment to categorize skills and determine proficiency levels.\n"
-                       "4. Format dates as ISO 8601 strings (YYYY-MM-DD) when possible.\n"
+                       "4. Format dates as ISO 8601 strings (YYYY-MM) when possible.\n"
                        "5. Ensure all extracted information is accurate and relevant to the field it's placed in.\n"
                        "6. cgpa_or_percentage should be a number.\n"
                        "7. For all 'id' fields, use a string of numbers(size of Date.now().toString() strings) that represents a unique identifier.\n"
