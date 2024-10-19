@@ -1,5 +1,4 @@
 from fastapi import FastAPI, File, UploadFile, Request
-from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
 from linksExtractor import LinksExtractor
