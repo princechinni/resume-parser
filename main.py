@@ -1,12 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
+from linksExtractor import LinksExtractor
 from openai import OpenAI
 import os
 import tempfile
 from dotenv import load_dotenv
 import json
 import tiktoken  # For estimating token usage
+import re #usedd for the link extraction.
 
 # Load environment variables from .env file
 load_dotenv()
@@ -75,6 +77,41 @@ async def extract_text_from_file(request: Request, file: UploadFile = File(...))
         print(f"Error processing file: {str(e)}")
         return {"error": str(e)}
 
+#links extrator.
+# Endpoint to extract links from a PDF or DOCX file
+@app.post("/api/resume/extract-links/")
+async def extract_links_from_file(file: UploadFile = File(...)):
+    """
+    Endpoint to upload a file (PDF or DOCX) and extract LinkedIn links from it.
+    """
+    # Save the file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+        contents = await file.read()
+        temp_file.write(contents)
+        temp_file_path = temp_file.name
+
+    try:
+        # Use the LinksExtractor class to extract links from the uploaded file
+        links_extractor = LinksExtractor(temp_file_path)
+        extracted_links = links_extractor.extract_links()
+
+        # Filter out LinkedIn links
+        linkedin_links = [link for link in extracted_links if "linkedin.com" in link]
+        github_links = [link for link in extracted_links if "github.com" in link]
+
+        # Create a dictionary with the key "linkedin" and the value being the LinkedIn link(s)
+        result = {"linkedin": linkedin_links[0],"github": github_links[0]}
+        
+
+        # Return the dictionary as JSON
+        return {"extracted_links": result}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        # Always remove the temporary file
+        os.unlink(temp_file_path)
+
+
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/api/resume/parse-resume/")
 async def parse_resume(request: Request, file: UploadFile = File(...)):
@@ -93,12 +130,14 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                        "1. Only include information that is explicitly stated or can be directly inferred from the resume.\n"
                        "2. Leave fields empty (use null for numbers/dates, empty string for text, or empty array for lists) if the information is not present.\n"
                        "3. Use your best judgment to categorize skills and determine proficiency levels.\n"
-                       "4. Format dates as ISO 8601 strings (YYYY-MM-DD) when possible.\n"
+                       "4. Format dates as ISO 8601 strings (YYYY-MM) when possible.\n"
                        "5. Ensure all extracted information is accurate and relevant to the field it's placed in.\n"
                        "6. cgpa_or_percentage should be a number.\n"
                        "7. For all 'id' fields, use a string of numbers(size of Date.now().toString() strings) that represents a unique identifier.\n"
                        "8. For all 'description' fields, use an array of strings that represents the description.\n"
-                       "9. make sure awards_and_achievements, extra_curricular_activities are an arrays of strings"
+                       "9. make sure awards_and_achievements, extra_curricular_activities are an arrays of strings.\n"
+                       "10. For the phone number, remove the '+91' prefix if present. Only include the digits of the phone number.\n"
+                       "11. For the email, remove the 'mailto:' prefix if present. Only include the email address.\n"
                        "JSON template to fill:"
                        '''
                        {
