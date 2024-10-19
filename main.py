@@ -98,7 +98,9 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                        "6. cgpa_or_percentage should be a number.\n"
                        "7. For all 'id' fields, use a string of numbers(size of Date.now().toString() strings) that represents a unique identifier.\n"
                        "8. For all 'description' fields, use an array of strings that represents the description.\n"
-                       "9. make sure awards_and_achievements, extra_curricular_activities are an arrays of strings"
+                       "9. make sure awards_and_achievements, extra_curricular_activities are an arrays of strings.\n"
+                       "10. For the phone number, remove the '+91' prefix if present. Only include the digits of the phone number.\n"
+                       "11. For the email, remove the 'mailto:' prefix if present. Only include the email address.\n"
                        "JSON template to fill:"
                        '''
                        {
