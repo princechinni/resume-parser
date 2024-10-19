@@ -79,10 +79,10 @@ async def extract_text_from_file(request: Request, file: UploadFile = File(...))
 
 #links extrator.
 # Endpoint to extract links from a PDF or DOCX file
-@app.post("/api/extract-links/")
+@app.post("/api/resume/extract-links/")
 async def extract_links_from_file(file: UploadFile = File(...)):
     """
-    Endpoint to upload a file (PDF or DOCX) and extract links from it.
+    Endpoint to upload a file (PDF or DOCX) and extract LinkedIn links from it.
     """
     # Save the file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
@@ -95,13 +95,22 @@ async def extract_links_from_file(file: UploadFile = File(...)):
         links_extractor = LinksExtractor(temp_file_path)
         extracted_links = links_extractor.extract_links()
 
-        # Return the extracted links as JSON
-        return {"extracted_links": extracted_links}
+        # Filter out LinkedIn links
+        linkedin_links = [link for link in extracted_links if "linkedin.com" in link]
+        github_links = [link for link in extracted_links if "github.com" in link]
+
+        # Create a dictionary with the key "linkedin" and the value being the LinkedIn link(s)
+        result = {"linkedin": linkedin_links[0],"github": github_links[0]}
+        
+
+        # Return the dictionary as JSON
+        return {"extracted_links": result}
     except Exception as e:
         return {"error": str(e)}
     finally:
         # Always remove the temporary file
         os.unlink(temp_file_path)
+
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
 @app.post("/api/resume/parse-resume/")
