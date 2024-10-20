@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   resume_parser:
     container_name: resume_parser
@@ -10,12 +8,12 @@ services:
       - .env
     networks:
       - app-network-dev
-      - app-network-prod
+      # - app-network-prod
 
 networks:
   app-network-dev:
     external:
       name: app-network-dev
-  app-network-prod:
-    external:
-      name: app-network-prod
+  # app-network-prod:
+  #   external:
+  #     name: app-network-prod

@@ -19,7 +19,7 @@ text_extractor = TextExtractor()
 # Add the CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,7 +55,7 @@ async def read_file(file):
 
     return extracted_text
 
-@app.get("/api/resume/health_check/")
+@app.get("/api/resume/health_check")
 async def health_check():
     return {"message": "Resume Parser is healthy"}
 
@@ -64,7 +64,7 @@ async def health_check():
 # async def options_extract_text():
 #     return {}
 
-@app.post("/api/resume/extract-text/")
+@app.post("/api/resume/extract-text")
 async def extract_text_from_file(request: Request, file: UploadFile = File(...)):
     print("Received request")
     print("Request headers:", request.headers)
@@ -113,7 +113,7 @@ async def extract_links_from_file(file: UploadFile = File(...)):
 
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
-@app.post("/api/resume/parse-resume/")
+@app.post("/api/resume/parse-resume")
 async def parse_resume(request: Request, file: UploadFile = File(...)):
     extracted_text = await read_file(file)
     
