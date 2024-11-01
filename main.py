@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Request
+from fastapi import FastAPI, File, UploadFile, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from textExtractor import TextExtractor
 from openai import OpenAI
@@ -7,6 +7,7 @@ import tempfile
 from dotenv import load_dotenv
 import json
 import tiktoken  # For estimating token usage
+from db import get_user_profile 
 
 # Load environment variables from .env file
 load_dotenv()
@@ -76,8 +77,22 @@ async def extract_text_from_file(request: Request, file: UploadFile = File(...))
         return {"error": str(e)}
 
 # API 2: Upload a file (PDF or DOCX), extract text, and return the parsed resume data with cost
-@app.post("/api/resume/parse-resume/")
-async def parse_resume(request: Request, file: UploadFile = File(...)):
+@app.post("/api/resume/parse-resume")
+async def parse_resume(request: Request, file: UploadFile = File(...), userId: str = Form(...)):
+    # Log the userId
+    print("Received userId:", userId)
+
+    # Check if user profile exists using the new function
+    try:
+        user_profile = get_user_profile(userId)
+    except Exception as e:
+        return {"error": str(e)}
+
+    # If user profile exists, return a message and do not parse the file
+    if user_profile:
+        return {"message": "A profile already exists for this user. File parsing is not allowed."}
+
+    # Proceed with file parsing if no profile exists
     extracted_text = await read_file(file)
     
     # Prepare the messages for the ChatCompletion API
