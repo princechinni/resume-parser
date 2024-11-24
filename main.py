@@ -79,7 +79,7 @@ async def extract_text_from_file(request: Request, file: UploadFile = File(...))
 
 #links extrator.
 # Endpoint to extract links from a PDF or DOCX file
-@app.post("/api/resume/extract-links/")
+@app.post("/api/resume/extract-links")
 async def extract_links_from_file(file: UploadFile = File(...)):
     """
     Endpoint to upload a file (PDF or DOCX) and extract LinkedIn links from it.
@@ -99,9 +99,11 @@ async def extract_links_from_file(file: UploadFile = File(...)):
         linkedin_links = [link for link in extracted_links if "linkedin.com" in link]
         github_links = [link for link in extracted_links if "github.com" in link]
 
-        # Create a dictionary with the key "linkedin" and the value being the LinkedIn link(s)
-        result = {"linkedin": linkedin_links[0],"github": github_links[0]}
-        
+        result = {}
+        if len(linkedin_links) > 0:
+            result["linkedin"] = linkedin_links[0]
+        if len(github_links) > 0:
+            result["github"] = github_links[0]        
 
         # Return the dictionary as JSON
         return {"extracted_links": result}
@@ -147,12 +149,6 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                                "email": "",
                                "phone": "",
                                "expected_salary": null
-                           },
-                           "socials": {
-                               "github": "",
-                               "linkedin": "",
-                               "twitter": "",
-                               "website": ""
                            },
                            "courses": [
                                {

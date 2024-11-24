@@ -5,4 +5,6 @@ pdfplumber==0.11.4
 python-dotenv==1.0.1
 tiktoken==0.7.0
 uvicorn==0.30.6
-python-multipart
+python-multipart==0.0.12
+pymupdf==1.24.11
+PyPDF2==3.0.1
