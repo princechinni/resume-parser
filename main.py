@@ -190,7 +190,7 @@ async def parse_resume(request: Request, file: UploadFile = File(...)):
                                    "date": null
                                }
                            ],
-                           "extra_curricular_activities": []
+                           "extra_curricular_activities": ["string1", "string2"]
                        }
                        '''
         }
